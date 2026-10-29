@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#143e34">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>합격까지 · 한능검 D-day</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="projects.css">
+</head>
+<body>
+<main>
+<header>
+<a href="./" class="brand">합격까지<span>한국사능력검정시험</span>
+</a>
+<button id="help">설치 안내 ↗</button>
+</header>
+<section class="intro">
+<p class="eyebrow">나의 공공기관 합격 프로젝트</p>
+<h1>한 걸음씩,<br>합격에 가까이.</h1>
+<p>오늘의 준비가 내일의 자신감이 되도록.</p>
+</section>
+<section id="hero" class="hero" aria-label="대표 일정 카운트다운">
+</section>
+<section class="schedule">
+<div class="sectionhead">
+<h2>나의 일정 <span id="count">
+</span>
+</h2>
+<button id="add" class="primary">＋ 일정 추가</button>
+</div>
+<p class="muted">모든 일정은 한국 시간(KST) 기준입니다.</p>
+<div id="events">
+</div>
+</section>
+<section class="recruitment">
+<div class="sectionhead">
+<div><p class="eyebrow">RECRUITMENT PROJECTS</p><h2>채용 프로젝트 <span id="projectCount"></span></h2></div>
+<div class="project-buttons"><button id="pdfUpload" class="primary">채용공고 PDF 등록</button><button id="addProject">직접 등록</button><input id="pdfFile" type="file" accept="application/pdf,.pdf" hidden></div>
+</div>
+<p class="muted">공고 일정은 검토 후 등록되며, 합격 결과에 따라 다음 단계가 활성화됩니다.</p>
+<div id="projectFocus" class="project-focus" hidden></div>
+<div id="projects"></div>
+<div class="project-tools"><button id="exportWidgetData">위젯 데이터 내보내기</button></div>
+</section>
+<details>
+<summary>아이폰 설치와 알림 안내</summary>
+<div class="guide">
+<h3>홈 화면에 추가하기</h3>
+<p>이 주소를 Safari에서 열고 공유 버튼 → ‘홈 화면에 추가’ → ‘추가’를 누르세요. ‘웹 앱으로 열기’가 보이면 켜 주세요. 앱 안의 브라우저에서는 먼저 Safari로 열어 주세요.</p>
+<h3>알림은 캘린더로 준비하세요</h3>
+<p>이 앱은 닫혀 있을 때 예약 알림을 보내지 않습니다. iOS 16.4 이상은 홈 화면 웹앱의 웹 푸시를 지원하지만, 사용자 허용과 별도 푸시 서버가 필요합니다. 이 버전은 푸시 서버를 사용하지 않습니다.</p>
+<p>일정의 ‘캘린더’ 버튼으로 .ics 파일을 내보낸 뒤 Apple 캘린더에 추가하세요. 1일 전·1시간 전 알림을 포함하지만 가져오기 방식에 따라 달라질 수 있습니다. 추가 후 캘린더에서 알림을 꼭 확인하세요. 파일이 미리보기만 되면 파일 앱에 저장하거나 Mac/iCloud 캘린더에서 가져오거나 직접 입력하세요.</p>
+<h3>저장과 오프라인</h3>
+<p>일정은 이 기기의 브라우저에만 저장됩니다. 기기 간 동기화되지 않으며, 사이트 데이터 삭제 시 사라집니다. Safari와 홈 화면 앱의 저장 공간이 다를 수 있으니 설치 후 일정을 확인하세요. ‘백업 저장’으로 따로 보관할 수 있습니다.</p>
+<p>최초 온라인 실행과 오프라인 준비 완료 후에는 캐시된 화면을 사용할 수 있습니다. 아이폰이 저장 공간을 회수하거나 로그인 갱신을 요구하면 인터넷 연결이 필요할 수 있습니다. 홈 화면 아이콘에 실시간 D-day 숫자나 위젯은 표시되지 않습니다.</p>
+<p>기본 일정은 요청하신 날짜입니다. 공식 공고를 확인한 결과가 아니므로 변경 여부는 <a href="https://www.historyexam.go.kr/" target="_blank" rel="noopener">한능검 공식 사이트</a>에서 확인해 주세요.</p>
+</div>
+</details>
+<footer>
+<div>
+<button id="backup">백업 저장</button>
+<button id="restore">백업 불러오기</button>
+<input id="file" type="file" accept="application/json,.json" hidden>
+</div>
+<p id="status" role="status">이 기기에 저장 · 동기화 없음</p>
+<p id="offline">오프라인 준비 중</p>
+</footer>
+</main>
+<dialog id="editor">
+<form id="form">
+<div class="sectionhead">
+<h2 id="formtitle">일정 추가</h2>
+<button type="button" id="close" aria-label="닫기">✕</button>
+</div>
+<label>일정 이름<input id="title" required maxlength="80" placeholder="예: 한능검 시험">
+</label>
+<label>유형<select id="kind">
+<option value="exam">시험</option>
+<option value="apply">원서접수</option>
+<option value="other">기타</option>
+</select>
+</label>
+<label>날짜와 시간 · 한국 시간<input id="date" type="datetime-local" required min="2000-01-01T00:00" max="2100-12-31T23:59">
+</label>
+<label>메모<textarea id="note" maxlength="500" rows="3" placeholder="준비물이나 확인할 내용을 적어 주세요">
+</textarea>
+</label>
+<label class="check">
+<input id="featured" type="checkbox"> 대표 D-day로 설정</label>
+<button type="submit" class="primary save">일정 저장</button>
+</form>
+</dialog>
+<dialog id="projectEditor"><form id="projectForm">
+<div class="sectionhead"><h2 id="projectFormTitle">채용 프로젝트 등록</h2><button type="button" data-close="projectEditor" aria-label="닫기">✕</button></div>
+<input id="projectId" type="hidden">
+<label>기관명<input id="institution" required maxlength="80" placeholder="예: 제주신용보증재단"></label>
+<label>채용명<input id="recruitmentTitle" required maxlength="120" placeholder="예: 2026년 제3차 신입직원 채용"></label>
+<label>공고일<input id="noticeDate" type="date"></label>
+<button type="submit" class="primary save">프로젝트 저장</button>
+</form></dialog>
+<dialog id="scheduleEditor"><form id="scheduleForm">
+<div class="sectionhead"><h2 id="scheduleFormTitle">프로젝트 일정 추가</h2><button type="button" data-close="scheduleEditor" aria-label="닫기">✕</button></div>
+<input id="scheduleProjectId" type="hidden"><input id="scheduleId" type="hidden">
+<label>일정명<input id="scheduleName" required maxlength="100"></label>
+<label>시작일<input id="scheduleStart" type="date"></label>
+<label>종료일<input id="scheduleEnd" type="date"></label>
+<label>마감시간<input id="scheduleEndTime" type="time"></label>
+<label>일정 유형<select id="scheduleType"><option value="application">원서접수</option><option value="notice">공고·발표</option><option value="exam">필기·시험</option><option value="documents">서류제출</option><option value="personality">인성검사·서류전형</option><option value="interview">면접</option><option value="final">최종발표</option><option value="other">기타</option></select></label>
+<label>활성화 조건<select id="scheduleRule"><option value="always">처음부터 활성</option><option value="written_pass">필기 합격 후</option><option value="document_pass">서류 합격 후</option><option value="interview_pass">면접 합격 후</option></select></label>
+<label>D-day 역할<select id="schedulePriority"><option value="target">대표 목표</option><option value="next">다음 일정</option><option value="deadline">마감 일정</option><option value="record">기록</option></select></label>
+<label class="check"><input id="scheduleNeedsReview" type="checkbox"> 날짜 확인 필요</label>
+<button type="submit" class="primary save">일정 저장</button>
+</form></dialog>
+<dialog id="pdfReview"><form id="pdfReviewForm">
+<div class="sectionhead"><div><p class="eyebrow">PDF TEXT REVIEW</p><h2>추출 일정 검토</h2></div><button type="button" data-close="pdfReview" aria-label="닫기">✕</button></div>
+<p id="pdfStatus" class="muted"></p>
+<label>기관명<input id="pdfInstitution" required maxlength="80"></label>
+<label>채용명<input id="pdfTitle" required maxlength="120"></label>
+<label>공고일<input id="pdfNoticeDate" type="date"></label>
+<div id="pdfReviewRows"></div>
+<p class="review-warning">예정 일정은 변경될 수 있습니다. 근거와 날짜를 확인한 뒤 선택한 일정만 등록하세요.</p>
+<button type="submit" class="primary save">선택 일정으로 프로젝트 등록</button>
+</form></dialog>
+<script src="app.js">
+</script>
+<script src="projects.js"></script>
+<script type="module" src="pdf-import.js"></script>
+</body>
+</html>

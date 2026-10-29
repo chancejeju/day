@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "timezone": "Asia/Seoul",
+  "updatedAt": "2026-10-29T00:00:00+09:00",
+  "events": [
+    {
+      "id": "exam",
+      "title": "한국사능력검정시험",
+      "kind": "exam",
+      "date": "2026-11-28T10:00",
+      "note": "시험 시작 · 준비물과 시험장을 미리 확인하세요.",
+      "featured": true
+    },
+    {
+      "id": "apply",
+      "title": "제주 원서접수",
+      "kind": "apply",
+      "date": "2026-11-06T10:00",
+      "note": "접수 시작 · 미리 로그인하고 접수 준비를 해 두세요.",
+      "featured": false
+    }
+  ],
+  "projects": [
+    {
+      "id": "project-jeju-credit-2026-3",
+      "fingerprint": "제주신용보증재단|2026년제3차신입직원채용|",
+      "institution": "제주신용보증재단",
+      "title": "2026년 제3차 신입직원 채용",
+      "noticeDate": "",
+      "sourceFile": "2026년 제3차 제주신용보증재단 신입직원 채용 공고문.pdf",
+      "sourceType": "provided-test-data",
+      "notice": "공고문의 예정 일정은 추후 변경될 수 있습니다.",
+      "createdAt": "2026-10-29T00:00:00+09:00",
+      "status": "active",
+      "currentStage": "필기전형",
+      "results": {"written":"unknown","document":"unknown","interview":"unknown"},
+      "schedules": [
+        {"id":"jeju-apply-start","name":"원서접수 시작","startDate":"2026-11-02","endDate":"2026-11-02","endTime":"","type":"application","activationRule":"always","priority":"next","active":true,"needsReview":false,"datePrecision":"exact","evidence":"원서접수: 2026.11.02~11.10 18:00"},
+        {"id":"jeju-apply-end","name":"원서접수 마감","startDate":"2026-11-10","endDate":"2026-11-10","endTime":"18:00","type":"application","activationRule":"always","priority":"deadline","active":true,"needsReview":false,"datePrecision":"exact","evidence":"원서접수: 2026.11.02~11.10 18:00"},
+        {"id":"jeju-written-notice","name":"필기전형 공고","startDate":"2026-11-13","endDate":"2026-11-13","endTime":"","type":"notice","activationRule":"always","priority":"next","active":true,"needsReview":false,"datePrecision":"exact","evidence":"필기전형 공고: 2026.11.13"},
+        {"id":"jeju-written-exam","name":"필기시험","startDate":"2026-11-22","endDate":"2026-11-22","endTime":"","type":"exam","activationRule":"always","priority":"target","active":true,"needsReview":false,"datePrecision":"exact","evidence":"필기시험: 2026.11.22"},
+        {"id":"jeju-written-result","name":"필기 합격자 발표","startDate":"2026-11-24","endDate":"2026-11-24","endTime":"","type":"notice","activationRule":"always","priority":"next","active":true,"needsReview":false,"datePrecision":"exact","evidence":"필기 합격자 발표: 2026.11.24"},
+        {"id":"jeju-documents","name":"필기 합격자 서류제출","startDate":"2026-11-25","endDate":"2026-11-27","endTime":"18:00","type":"documents","activationRule":"written_pass","priority":"deadline","active":false,"needsReview":false,"datePrecision":"exact","evidence":"필기 합격자 서류제출: 2026.11.25~11.27 18:00"},
+        {"id":"jeju-personality","name":"온라인 인성검사 및 서류전형","startDate":"2026-11-30","endDate":"2026-12-03","endTime":"","type":"personality","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"온라인 인성검사 및 서류전형: 2026.11.30~12.03"},
+        {"id":"jeju-document-result","name":"서류전형 결과 발표","startDate":"2026-12-04","endDate":"2026-12-04","endTime":"","type":"notice","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"서류전형 결과 발표: 2026.12.04"},
+        {"id":"jeju-interview","name":"면접전형","startDate":"2026-12-16","endDate":"2026-12-18","endTime":"","type":"interview","activationRule":"written_pass","priority":"target","active":false,"needsReview":true,"datePrecision":"range-day","evidence":"면접전형: 2026.12.16~12.18 중 1일"},
+        {"id":"jeju-final","name":"최종 합격자 발표","startDate":"2026-12-21","endDate":"2026-12-21","endTime":"","type":"final","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"최종 합격자 발표: 2026.12.21"}
+      ]
+    }
+  ],
+  "widgetPreference": {"mode":"auto","projectId":null,"eventId":null}
+}
