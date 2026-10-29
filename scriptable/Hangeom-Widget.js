@@ -24,8 +24,8 @@ function isEvent(event) {
 }
 
 function validatePayload(payload) {
-  return payload && payload.timezone === 'Asia/Seoul' &&
-    Array.isArray(payload.events) && payload.events.some(isEvent);
+  return payload && payload.timezone === 'Asia/Seoul' && Array.isArray(payload.events) &&
+    (payload.events.some(isEvent) || (Array.isArray(payload.projects) && payload.projects.length > 0));
 }
 
 async function loadData() {
@@ -53,9 +53,36 @@ const KST_OFFSET = 9 * 60 * 60 * 1000;
 const kstDay = value => Math.floor((value + KST_OFFSET) / 86400000);
 const timestamp = event => Date.parse(event.date + '+09:00');
 
-function selectExam(events, now) {
-  const exams = events.filter(isEvent).sort((a, b) => timestamp(a) - timestamp(b));
+function projectCandidates(payload) {
+  if (!Array.isArray(payload.projects)) return [];
+  return payload.projects.flatMap(project => project.status === 'ended' ? [] : (project.schedules || [])
+    .filter(item => item.active && item.startDate && !item.needsReview && item.datePrecision !== 'range-day')
+    .map(item => ({
+      id: item.id,
+      projectId: project.id,
+      title: item.name,
+      date: item.startDate + 'T00:00',
+      priority: item.priority,
+      stage: project.currentStage || '',
+      institution: project.institution || ''
+    })));
+}
+
+function selectExam(payload, now) {
+  const projectItems = projectCandidates(payload);
+  const manual = payload.widgetPreference;
+  if (manual?.mode === 'manual') {
+    const selected = projectItems.find(item => item.projectId === manual.projectId && item.id === manual.eventId);
+    if (selected) return selected;
+  }
   const today = kstDay(now);
+  const futureProjectItems = projectItems.filter(item => kstDay(timestamp(item)) >= today);
+  if (futureProjectItems.length) {
+    const rank = item => item.stage.includes('서류') ? ({deadline:0,next:1,target:2,record:3})[item.priority] ?? 4 : ({target:0,deadline:1,next:2,record:3})[item.priority] ?? 4;
+    futureProjectItems.sort((a, b) => rank(a) - rank(b) || timestamp(a) - timestamp(b));
+    return futureProjectItems[0];
+  }
+  const exams = payload.events.filter(isEvent).sort((a, b) => timestamp(a) - timestamp(b));
   return exams.find(event => kstDay(timestamp(event)) >= today) || exams[exams.length - 1] || null;
 }
 
@@ -110,7 +137,7 @@ function examWidget(event, now, cached) {
 
 const result = await loadData();
 const now = Date.now();
-const exam = result.payload ? selectExam(result.payload.events, now) : null;
+const exam = result.payload ? selectExam(result.payload, now) : null;
 const widget = exam ? examWidget(exam, now, result.cached) : emptyWidget();
 
 // 실제 갱신 시점은 Scriptable이 아닌 iOS가 결정합니다.
