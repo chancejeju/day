@@ -53,40 +53,67 @@ const KST_OFFSET = 9 * 60 * 60 * 1000;
 const kstDay = value => Math.floor((value + KST_OFFSET) / 86400000);
 const timestamp = event => Date.parse(event.date + '+09:00');
 
-function projectCandidates(payload) {
-  if (!Array.isArray(payload.projects)) return [];
-  return payload.projects.flatMap(project => project.status === 'ended' ? [] : (project.schedules || [])
-    .filter(item => item.active && item.startDate && !item.needsReview && item.datePrecision !== 'range-day')
-    .map(item => ({
-      id: item.id,
-      projectId: project.id,
-      title: item.name,
-      date: item.startDate + 'T00:00',
-      priority: item.priority,
-      stage: project.currentStage || '',
-      institution: project.institution || ''
-    })));
+function effectiveDay(item) {
+  const value = item.endDate || item.startDate;
+  return value ? kstDay(Date.parse(value + 'T00:00+09:00')) : -Infinity;
+}
+
+function widgetEvent(project, item, resultInputNeeded = false) {
+  return {
+    id: item.id, projectId: project.id, title: item.name,
+    date: (item.endDate || item.startDate) + 'T00:00',
+    stage: project.currentStage || '', institution: project.institution || '',
+    resultInputNeeded, needsReview: Boolean(item.needsReview || item.datePrecision === 'range-day')
+  };
+}
+
+function scheduleForProject(project, now) {
+  if (!project || project.status === 'ended') return null;
+  const schedules = project.schedules || [];
+  const today = kstDay(now);
+  const by = predicate => schedules.find(predicate);
+  const future = item => item?.active && item.startDate && effectiveDay(item) >= today;
+  const writtenExam = by(item => item.type === 'exam') || by(item => /필기.*(시험|전형)/.test(item.name) && !/(공고|발표|결과)/.test(item.name));
+  const writtenResult = by(item => /필기.*(합격|결과).*발표/.test(item.name));
+  const documentResult = by(item => /서류.*(결과|합격).*발표/.test(item.name));
+  const interview = by(item => item.type === 'interview' || /면접/.test(item.name));
+  const finalResult = by(item => item.type === 'final' || /최종.*발표/.test(item.name));
+  const results = project.results || {written:'unknown',document:'unknown',interview:'unknown'};
+
+  if (results.written === 'unknown') {
+    if (writtenExam && effectiveDay(writtenExam) >= today) return widgetEvent(project, writtenExam);
+    if (writtenResult) return widgetEvent(project, writtenResult, effectiveDay(writtenResult) < today);
+  }
+  if (results.written === 'pass' && results.document === 'unknown') {
+    const upcoming = schedules.filter(item => item.active && item.activationRule === 'written_pass' && item.startDate && effectiveDay(item) >= today).sort((a,b)=>effectiveDay(a)-effectiveDay(b));
+    if (upcoming[0]) return widgetEvent(project, upcoming[0]);
+    if (documentResult) return widgetEvent(project, documentResult, true);
+  }
+  if (results.document === 'pass' && results.interview === 'unknown') {
+    if (future(interview)) return widgetEvent(project, interview);
+    if (finalResult) return widgetEvent(project, finalResult, effectiveDay(finalResult) < today);
+  }
+  if (results.interview === 'pass' && future(finalResult)) return widgetEvent(project, finalResult);
+  const fallback = schedules.filter(future).sort((a,b)=>effectiveDay(a)-effectiveDay(b))[0];
+  return fallback ? widgetEvent(project, fallback) : null;
 }
 
 function selectExam(payload, now) {
-  const projectItems = projectCandidates(payload);
-  const manual = payload.widgetPreference;
-  if (manual?.mode === 'manual') {
-    const selected = projectItems.find(item => item.projectId === manual.projectId && item.id === manual.eventId);
+  const projects = Array.isArray(payload.projects) ? payload.projects : [];
+  const ids = Array.isArray(payload.projectPriority) ? payload.projectPriority : [];
+  const order = [...ids.filter((id,index) => ids.indexOf(id) === index && projects.some(project => project.id === id)), ...projects.map(project => project.id).filter(id => !ids.includes(id))];
+  for (const id of order) {
+    const selected = scheduleForProject(projects.find(project => project.id === id), now);
     if (selected) return selected;
   }
   const today = kstDay(now);
-  const futureProjectItems = projectItems.filter(item => kstDay(timestamp(item)) >= today);
-  if (futureProjectItems.length) {
-    const rank = item => item.stage.includes('서류') ? ({deadline:0,next:1,target:2,record:3})[item.priority] ?? 4 : ({target:0,deadline:1,next:2,record:3})[item.priority] ?? 4;
-    futureProjectItems.sort((a, b) => rank(a) - rank(b) || timestamp(a) - timestamp(b));
-    return futureProjectItems[0];
-  }
   const exams = payload.events.filter(isEvent).sort((a, b) => timestamp(a) - timestamp(b));
   return exams.find(event => kstDay(timestamp(event)) >= today) || exams[exams.length - 1] || null;
 }
 
 function statusFor(event, now) {
+  if (event.resultInputNeeded) return '결과 입력';
+  if (event.needsReview) return '확인 필요';
   const difference = kstDay(timestamp(event)) - kstDay(now);
   if (difference > 0) return 'D-' + difference;
   if (difference === 0) return 'D-DAY';
@@ -125,7 +152,8 @@ function examWidget(event, now, cached) {
   widget.setPadding(15, 16, 14, 16);
   widget.url = SETTINGS.appURL;
 
-  addText(widget, cached ? 'NEXT EXAM · 저장됨' : 'NEXT EXAM', 10, SETTINGS.secondaryText, 'bold');
+  const heading = event.institution || 'NEXT EXAM';
+  addText(widget, cached ? `${heading} · 저장됨` : heading, 10, SETTINGS.secondaryText, 'bold');
   widget.addSpacer(7);
   addText(widget, statusFor(event, now), 40, SETTINGS.primaryText, 'bold');
   widget.addSpacer();

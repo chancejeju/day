@@ -16,8 +16,8 @@ const definitions = [
   {key:'documents', name:'필기 합격자 서류제출', pattern:/(?:필기\s*합격자.{0,12})?서류\s*제출/, type:'documents', rule:'written_pass', priority:'deadline'},
   {key:'personality', name:'온라인 인성검사 및 서류전형', pattern:/(?:온라인\s*)?인성\s*검사|인성검사.{0,15}서류전형/, type:'personality', rule:'written_pass', priority:'next'},
   {key:'document_result', name:'서류전형 결과 발표', pattern:/서류\s*전형.{0,15}(?:결과|합격자).{0,10}발표|서류전형\s*결과\s*발표/, type:'notice', rule:'written_pass', priority:'next'},
-  {key:'interview', name:'면접전형', pattern:/면접\s*(?:시험|전형)?/, exclude:/결과|합격|발표/, type:'interview', rule:'written_pass', priority:'target'},
-  {key:'final_result', name:'최종 합격자 발표', pattern:/최종.{0,10}(?:합격자|결과).{0,10}발표/, type:'final', rule:'written_pass', priority:'next'}
+  {key:'interview', name:'면접전형', pattern:/면접\s*(?:시험|전형)?/, exclude:/결과|합격|발표/, type:'interview', rule:'document_pass', priority:'target'},
+  {key:'final_result', name:'최종 합격자 발표', pattern:/최종.{0,10}(?:합격자|결과).{0,10}발표/, type:'final', rule:'document_pass', priority:'next'}
 ];
 
 function pad(value) { return String(value).padStart(2, '0'); }

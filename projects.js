@@ -30,7 +30,8 @@ function initialState() {
     migratedAt: new Date().toISOString(),
     generalEvents: structuredClone(events),
     projects: [],
-    widgetPreference: { mode: 'auto', projectId: null, eventId: null },
+    projectPriority: [],
+    widgetPreference: { mode: 'auto', currentProjectId: null, currentEventId: null, resultInputNeeded: false },
     publishedSeeded: false
   };
 }
@@ -51,6 +52,13 @@ function loadState() {
 }
 
 let recruitmentState = loadState();
+if (!recruitmentState.priorityMigrationV1) {
+  recruitmentState.projects.forEach(project => project.schedules.forEach(schedule => {
+    if (schedule.activationRule === 'written_pass' && ['interview','final'].includes(schedule.type)) schedule.activationRule = 'document_pass';
+  }));
+  recruitmentState.priorityMigrationV1 = true;
+}
+if (!Array.isArray(recruitmentState.projectPriority)) recruitmentState.projectPriority = [];
 events = structuredClone(recruitmentState.generalEvents);
 hasLocalData = true;
 render();
@@ -84,12 +92,21 @@ function recalculateProject(project) {
 function persistProjectsState() {
   recruitmentState.generalEvents = structuredClone(events);
   recruitmentState.projects.forEach(recalculateProject);
+  normalizeProjectPriority();
+  const focus = selectProjectFocus();
+  recruitmentState.widgetPreference = {
+    mode: 'auto',
+    currentProjectId: focus?.project.id || null,
+    currentEventId: focus?.schedule.id || null,
+    resultInputNeeded: Boolean(focus?.resultInputNeeded)
+  };
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(recruitmentState));
   } catch (_) {
     $('status').textContent = '채용 프로젝트 저장 공간에 접근할 수 없습니다. 전체 백업을 저장해 주세요.';
   }
   renderProjects();
+  renderRecruitmentHero();
 }
 window.persistProjectsState = persistProjectsState;
 
@@ -98,10 +115,11 @@ function kstDay2(dateString) {
   return Math.floor((Date.parse(`${dateString}T00:00:00+09:00`) + 32400000) / 86400000);
 }
 
-function scheduleDday(schedule, now = Date.now()) {
+function scheduleDday(schedule, now = Date.now(), resultInputNeeded = false) {
+  if (resultInputNeeded) return '결과 입력 필요';
   if (!schedule.startDate || schedule.needsReview || schedule.datePrecision === 'range-day') return '확인 필요';
   const today = Math.floor((now + 32400000) / 86400000);
-  const diff = kstDay2(schedule.startDate) - today;
+  const diff = scheduleEffectiveDay(schedule) - today;
   return diff === 0 ? 'D-DAY' : diff > 0 ? `D−${diff}` : `D+${Math.abs(diff)}`;
 }
 
@@ -109,30 +127,80 @@ function scheduleEffectiveDay(schedule) {
   return kstDay2(schedule.endDate || schedule.startDate);
 }
 
-function selectProjectFocus() {
-  const pref = recruitmentState.widgetPreference || { mode: 'auto' };
-  if (pref.mode === 'manual') {
-    const project = recruitmentState.projects.find(item => item.id === pref.projectId);
-    const schedule = project?.schedules.find(item => item.id === pref.eventId && item.active);
-    if (project && schedule) return { project, schedule };
+function normalizeProjectPriority() {
+  const ids = new Set(recruitmentState.projects.map(project => project.id));
+  recruitmentState.projectPriority = recruitmentState.projectPriority.filter((id, index, list) => ids.has(id) && list.indexOf(id) === index);
+  recruitmentState.projects.forEach(project => {
+    if (!recruitmentState.projectPriority.includes(project.id)) recruitmentState.projectPriority.push(project.id);
+  });
+  return recruitmentState.projectPriority;
+}
+
+function moveProjectPriority(projectId, direction) {
+  normalizeProjectPriority();
+  const from = recruitmentState.projectPriority.indexOf(projectId);
+  const to = from + direction;
+  if (from < 0 || to < 0 || to >= recruitmentState.projectPriority.length) return false;
+  [recruitmentState.projectPriority[from], recruitmentState.projectPriority[to]] = [recruitmentState.projectPriority[to], recruitmentState.projectPriority[from]];
+  return true;
+}
+
+function scheduleBy(project, predicate) {
+  return project.schedules.find(predicate) || null;
+}
+
+function selectProjectSchedule(project, now = Date.now()) {
+  if (!project || project.status === 'ended') return null;
+  const today = Math.floor((now + 32400000) / 86400000);
+  const futureOrToday = schedule => schedule?.active && schedule.startDate && scheduleEffectiveDay(schedule) >= today;
+  const writtenExam = scheduleBy(project, item => item.type === 'exam') || scheduleBy(project, item => /필기.*(시험|전형)/.test(item.name) && !/(공고|발표|결과)/.test(item.name));
+  const writtenResult = scheduleBy(project, item => /필기.*(합격|결과).*발표/.test(item.name));
+  const documentResult = scheduleBy(project, item => /서류.*(결과|합격).*발표/.test(item.name));
+  const interview = scheduleBy(project, item => item.type === 'interview' || /면접/.test(item.name));
+  const finalResult = scheduleBy(project, item => item.type === 'final' || /최종.*발표/.test(item.name));
+
+  if (project.results.written === 'unknown') {
+    if (writtenExam && scheduleEffectiveDay(writtenExam) >= today) return { schedule: writtenExam, resultInputNeeded: false };
+    if (writtenResult) return { schedule: writtenResult, resultInputNeeded: scheduleEffectiveDay(writtenResult) < today };
   }
-  const today = Math.floor((Date.now() + 32400000) / 86400000);
-  const candidates = recruitmentState.projects.flatMap(project => project.status === 'ended' ? [] :
-    project.schedules.filter(item => item.active && item.startDate && !item.needsReview && scheduleEffectiveDay(item) >= today)
-      .map(schedule => ({ project, schedule })));
-  const rank = candidate => {
-    const project = candidate.project;
-    const priority = candidate.schedule.priority;
-    if (project.results.written === 'pass') return ({deadline:0,next:1,target:2,record:3})[priority] ?? 4;
-    return ({target:0,deadline:1,next:2,record:3})[priority] ?? 4;
-  };
-  candidates.sort((a, b) => rank(a) - rank(b) || scheduleEffectiveDay(a.schedule) - scheduleEffectiveDay(b.schedule));
-  return candidates[0] || null;
+  if (project.results.written === 'pass' && project.results.document === 'unknown') {
+    const stageItems = project.schedules.filter(item => item.active && item.activationRule === 'written_pass' && item.startDate);
+    const upcoming = stageItems.filter(futureOrToday).sort((a,b) => scheduleEffectiveDay(a) - scheduleEffectiveDay(b));
+    if (upcoming.length) return { schedule: upcoming[0], resultInputNeeded: false };
+    if (documentResult) return { schedule: documentResult, resultInputNeeded: true };
+  }
+  if (project.results.document === 'pass' && project.results.interview === 'unknown') {
+    if (interview && scheduleEffectiveDay(interview) >= today) return { schedule: interview, resultInputNeeded: false };
+    if (finalResult) return { schedule: finalResult, resultInputNeeded: scheduleEffectiveDay(finalResult) < today };
+  }
+  if (project.results.interview === 'pass' && futureOrToday(finalResult)) return { schedule: finalResult, resultInputNeeded: false };
+
+  const fallback = project.schedules.filter(futureOrToday).sort((a,b) => scheduleEffectiveDay(a) - scheduleEffectiveDay(b))[0];
+  return fallback ? { schedule: fallback, resultInputNeeded: false } : null;
+}
+
+function selectProjectFocus(now = Date.now()) {
+  normalizeProjectPriority();
+  for (const id of recruitmentState.projectPriority) {
+    const project = recruitmentState.projects.find(item => item.id === id);
+    if (!project || project.status === 'ended') continue;
+    const selected = selectProjectSchedule(project, now);
+    if (selected) return { project, ...selected };
+  }
+  return null;
 }
 
 function resultSelect(project, stage, label) {
   const value = project.results[stage];
   return `<label class="result-control">${label}<select data-result="${stage}" data-project="${esc2(project.id)}"><option value="unknown" ${value==='unknown'?'selected':''}>미확인</option><option value="pass" ${value==='pass'?'selected':''}>합격</option><option value="fail" ${value==='fail'?'selected':''}>불합격</option></select></label>`;
+}
+
+function setProjectResult(projectId, stage, result) {
+  const project = recruitmentState.projects.find(item => item.id === projectId);
+  if (!project || !RESULT_VALUES.includes(result) || !['written','document','interview'].includes(stage)) return false;
+  project.results[stage] = result;
+  recalculateProject(project);
+  return true;
 }
 
 function scheduleDateText(item) {
@@ -143,22 +211,35 @@ function scheduleDateText(item) {
 
 function renderProjects() {
   recruitmentState.projects.forEach(recalculateProject);
+  normalizeProjectPriority();
   $('projectCount').textContent = recruitmentState.projects.length;
   const focus = selectProjectFocus();
   const focusBox = $('projectFocus');
   if (focus) {
     focusBox.hidden = false;
-    focusBox.innerHTML = `<span>현재 표시 대상 · ${esc2(focus.project.institution)}</span><strong>${esc2(focus.schedule.name)} ${esc2(scheduleDday(focus.schedule))}</strong><button data-action="auto-widget">자동 선택</button>`;
+    const deadline = focus.project.schedules.filter(item => item.active && item.priority === 'deadline' && scheduleEffectiveDay(item) >= Math.floor((Date.now()+32400000)/86400000)).sort((a,b)=>scheduleEffectiveDay(a)-scheduleEffectiveDay(b))[0];
+    focusBox.innerHTML = `<span>1순위 프로젝트 · 단계별 자동 전환</span><strong>${esc2(focus.project.institution)} ${esc2(focus.schedule.name)} ${esc2(scheduleDday(focus.schedule, Date.now(), focus.resultInputNeeded))}</strong>${deadline ? `<small class="focus-deadline">가까운 마감 · ${esc2(deadline.name)} ${esc2(scheduleDateText(deadline))}</small>` : ''}`;
   } else {
     focusBox.hidden = true; focusBox.innerHTML = '';
   }
-  $('projects').innerHTML = recruitmentState.projects.map(project => `<article class="project-card" data-project-card="${esc2(project.id)}">
-    <div class="project-card-head"><div><span class="project-stage">${esc2(project.currentStage)}</span><h3>${esc2(project.institution)}</h3><p>${esc2(project.title)}</p></div><div class="project-card-actions"><button data-action="edit-project" data-id="${esc2(project.id)}">수정</button><button data-action="delete-project" data-id="${esc2(project.id)}">삭제</button></div></div>
+  $('priorityManager').innerHTML = recruitmentState.projectPriority.map((id,index) => {
+    const project = recruitmentState.projects.find(item => item.id === id); if (!project) return '';
+    return `<div class="priority-item"><span class="priority-rank">${index+1}순위</span><div class="priority-name"><strong>${esc2(project.institution)}</strong><small>${esc2(project.title)}</small></div><div class="priority-actions"><button class="move-up" data-action="priority-up" data-id="${esc2(id)}" ${index===0?'disabled':''}>위로</button><button class="move-down" data-action="priority-down" data-id="${esc2(id)}" ${index===recruitmentState.projectPriority.length-1?'disabled':''}>아래로</button></div></div>`;
+  }).join('') || '<p class="priority-empty">등록된 채용 프로젝트가 없습니다.</p>';
+  $('projects').innerHTML = recruitmentState.projectPriority.map((id,index) => recruitmentState.projects.find(item=>item.id===id)).filter(Boolean).map((project,index) => `<article class="project-card" data-project-card="${esc2(project.id)}">
+    <div class="project-card-head"><div><span class="project-stage">${esc2(project.currentStage)}</span><span class="project-rank">${index+1}순위</span><h3>${esc2(project.institution)}</h3><p>${esc2(project.title)}</p></div><div class="project-card-actions"><button data-action="edit-project" data-id="${esc2(project.id)}">수정</button><button data-action="delete-project" data-id="${esc2(project.id)}">삭제</button></div></div>
     <p class="project-notice">${esc2(project.notice || '예정 일정은 변경될 수 있습니다.')}</p>
     <div class="results">${resultSelect(project,'written','필기')}${resultSelect(project,'document','서류')}${resultSelect(project,'interview','면접')}</div>
-    <div class="project-schedules">${project.schedules.map(item => `<div class="project-schedule ${item.active?'is-active':'is-waiting'}"><div><span class="schedule-state">${item.active?'활성':'조건부 대기'} · ${esc2(item.priority)}</span><strong>${esc2(item.name)}</strong><small>${esc2(scheduleDateText(item))}${item.needsReview?' · 확인 필요':''}</small></div><span class="schedule-dday">${item.active?esc2(scheduleDday(item)):'대기'}</span><div class="schedule-actions"><button data-action="widget-target" data-project="${esc2(project.id)}" data-id="${esc2(item.id)}" ${!item.active?'disabled':''}>위젯 표시</button><button data-action="edit-schedule" data-project="${esc2(project.id)}" data-id="${esc2(item.id)}">수정</button><button data-action="delete-schedule" data-project="${esc2(project.id)}" data-id="${esc2(item.id)}">삭제</button></div></div>`).join('') || '<p class="muted">등록된 일정이 없습니다.</p>'}</div>
+    <div class="project-schedules">${project.schedules.map(item => `<div class="project-schedule ${item.active?'is-active':'is-waiting'}"><div><span class="schedule-state">${item.active?'활성':'조건부 대기'} · ${esc2(item.priority)}</span><strong>${esc2(item.name)}</strong><small>${esc2(scheduleDateText(item))}${item.needsReview?' · 확인 필요':''}</small></div><span class="schedule-dday">${item.active?esc2(scheduleDday(item)):'대기'}</span><div class="schedule-actions"><button data-action="edit-schedule" data-project="${esc2(project.id)}" data-id="${esc2(item.id)}">수정</button><button data-action="delete-schedule" data-project="${esc2(project.id)}" data-id="${esc2(item.id)}">삭제</button></div></div>`).join('') || '<p class="muted">등록된 일정이 없습니다.</p>'}</div>
     <button data-action="add-schedule" data-project="${esc2(project.id)}">＋ 프로젝트 일정 추가</button>
   </article>`).join('') || '<div class="empty-project"><p>등록된 채용 프로젝트가 없습니다.</p><small>채용공고 PDF를 검토하거나 직접 프로젝트를 추가하세요.</small></div>';
+}
+
+function renderRecruitmentHero() {
+  const focus = selectProjectFocus();
+  if (!focus) return;
+  const value = scheduleDday(focus.schedule, Date.now(), focus.resultInputNeeded);
+  $('hero').innerHTML = `<p class="eyebrow">채용 1순위 · ${esc2(focus.project.currentStage)}</p><h2>${esc2(value)}</h2><strong>${esc2(focus.project.institution)} · ${esc2(focus.schedule.name)}</strong><p>${esc2(scheduleDateText(focus.schedule))}</p>`;
 }
 
 function openProjectEditor(project = null) {
@@ -205,6 +286,7 @@ function registerProjectDraft(draft) {
     recruitmentState.projects = recruitmentState.projects.map(item => item.id === duplicate.id ? recalculateProject(project) : item);
   } else {
     recruitmentState.projects.push(project);
+    recruitmentState.projectPriority.push(project.id);
   }
   persistProjectsState();
   return true;
@@ -235,8 +317,7 @@ $('scheduleForm').onsubmit = event => {
 
 $('projects').onchange = event => {
   const select = event.target.closest('select[data-result]'); if (!select) return;
-  const project = recruitmentState.projects.find(item => item.id === select.dataset.project); if (!project) return;
-  project.results[select.dataset.result] = select.value; recalculateProject(project); persistProjectsState();
+  if (setProjectResult(select.dataset.project, select.dataset.result, select.value)) persistProjectsState();
 };
 
 $('projects').onclick = event => {
@@ -244,22 +325,27 @@ $('projects').onclick = event => {
   const action = button.dataset.action;
   const project = recruitmentState.projects.find(item => item.id === (button.dataset.project || button.dataset.id));
   if (action === 'edit-project') openProjectEditor(project);
-  if (action === 'delete-project' && project && confirm(`“${project.institution} · ${project.title}” 프로젝트를 삭제할까요? 일반 일정은 삭제되지 않습니다.`)) { recruitmentState.projects = recruitmentState.projects.filter(item => item.id !== project.id); persistProjectsState(); }
+  if (action === 'delete-project' && project && confirm(`“${project.institution} · ${project.title}” 프로젝트를 삭제할까요? 일반 일정은 삭제되지 않습니다.`)) { recruitmentState.projects = recruitmentState.projects.filter(item => item.id !== project.id); recruitmentState.projectPriority = recruitmentState.projectPriority.filter(id => id !== project.id); persistProjectsState(); }
   if (action === 'add-schedule' && project) openScheduleEditor(project.id);
-  if (['edit-schedule','delete-schedule','widget-target'].includes(action)) {
+  if (['edit-schedule','delete-schedule'].includes(action)) {
     const owner = recruitmentState.projects.find(item => item.id === button.dataset.project);
     const item = owner?.schedules.find(value => value.id === button.dataset.id); if (!owner || !item) return;
     if (action === 'edit-schedule') openScheduleEditor(owner.id, item);
     if (action === 'delete-schedule' && confirm(`“${item.name}” 일정을 삭제할까요?`)) { owner.schedules = owner.schedules.filter(value => value.id !== item.id); persistProjectsState(); }
-    if (action === 'widget-target') { recruitmentState.widgetPreference = { mode:'manual', projectId:owner.id, eventId:item.id }; persistProjectsState(); }
   }
 };
 
-$('projectFocus').onclick = event => { if (event.target.closest('[data-action="auto-widget"]')) { recruitmentState.widgetPreference = {mode:'auto',projectId:null,eventId:null}; persistProjectsState(); } };
+$('priorityManager').onclick = event => {
+  const button = event.target.closest('button[data-action]'); if (!button) return;
+  const direction = button.dataset.action === 'priority-up' ? -1 : button.dataset.action === 'priority-down' ? 1 : 0;
+  if (direction && moveProjectPriority(button.dataset.id, direction)) persistProjectsState();
+};
 document.querySelectorAll('[data-close]').forEach(button => button.onclick = () => $(button.dataset.close).close());
 
 function publicPayload() {
-  return { version:2, timezone:'Asia/Seoul', updatedAt:new Date().toISOString(), events:structuredClone(events), projects:structuredClone(recruitmentState.projects), widgetPreference:structuredClone(recruitmentState.widgetPreference) };
+  const focus = selectProjectFocus();
+  recruitmentState.widgetPreference = {mode:'auto',currentProjectId:focus?.project.id||null,currentEventId:focus?.schedule.id||null,resultInputNeeded:Boolean(focus?.resultInputNeeded)};
+  return { version:2, timezone:'Asia/Seoul', updatedAt:new Date().toISOString(), events:structuredClone(events), projects:structuredClone(recruitmentState.projects), projectPriority:structuredClone(normalizeProjectPriority()), widgetPreference:structuredClone(recruitmentState.widgetPreference) };
 }
 
 $('exportWidgetData').onclick = () => download(JSON.stringify(publicPayload(), null, 2), 'application/json', 'events.json');
@@ -274,7 +360,7 @@ $('file').onchange = async event => {
     if (Array.isArray(parsed) && parsed.every(valid)) {
       if (confirm('이 파일은 이전 버전 일반 일정 백업입니다. 일반 일정만 복원할까요?')) { events = parsed; persistProjectsState(); render(); }
     } else if (parsed?.version === 2 && Array.isArray(parsed.generalEvents) && parsed.generalEvents.every(valid) && Array.isArray(parsed.projects) && parsed.projects.every(validProject)) {
-      if (confirm(`일반 일정 ${parsed.generalEvents.length}개와 채용 프로젝트 ${parsed.projects.length}개로 현재 데이터를 교체할까요?`)) { recruitmentState = parsed; events = structuredClone(parsed.generalEvents); persistProjectsState(); render(); }
+      if (confirm(`일반 일정 ${parsed.generalEvents.length}개와 채용 프로젝트 ${parsed.projects.length}개로 현재 데이터를 교체할까요?`)) { recruitmentState = parsed; if (!Array.isArray(recruitmentState.projectPriority)) recruitmentState.projectPriority=[]; events = structuredClone(parsed.generalEvents); persistProjectsState(); render(); }
     } else throw new Error('invalid backup');
   } catch (_) { alert('올바른 합격까지 백업 파일이 아닙니다.'); }
   event.target.value = '';
@@ -285,12 +371,19 @@ async function seedPublishedProjects() {
   try {
     const response = await fetch('./data/events.json', {cache:'no-store'}); const payload = await response.json();
     if (Array.isArray(payload.projects)) payload.projects.filter(validProject).forEach(project => {
-      if (!recruitmentState.projects.some(item => item.fingerprint === project.fingerprint)) recruitmentState.projects.push(project);
+      if (!recruitmentState.projects.some(item => item.fingerprint === project.fingerprint)) { recruitmentState.projects.push(project); recruitmentState.projectPriority.push(project.id); }
     });
+    if (Array.isArray(payload.projectPriority)) {
+      const publishedOrder = payload.projectPriority.filter(id => recruitmentState.projects.some(project => project.id === id));
+      recruitmentState.projectPriority = [...publishedOrder, ...recruitmentState.projectPriority.filter(id => !publishedOrder.includes(id))];
+    }
   } catch (_) {}
   recruitmentState.publishedSeeded = true; persistProjectsState();
 }
 
+const renderGeneralApp = render;
+render = function () { renderGeneralApp(); renderRecruitmentHero(); };
 renderProjects();
+renderRecruitmentHero();
 seedPublishedProjects();
-window.recruitmentApp = { getState:() => structuredClone(recruitmentState), recalculateProject, selectProjectFocus, scheduleDday, publicPayload };
+window.recruitmentApp = { getState:() => structuredClone(recruitmentState), recalculateProject, selectProjectFocus, selectProjectSchedule, scheduleDday, publicPayload, moveProjectPriority, setProjectResult, persistProjectsState };

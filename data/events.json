@@ -43,10 +43,11 @@
         {"id":"jeju-documents","name":"필기 합격자 서류제출","startDate":"2026-11-25","endDate":"2026-11-27","endTime":"18:00","type":"documents","activationRule":"written_pass","priority":"deadline","active":false,"needsReview":false,"datePrecision":"exact","evidence":"필기 합격자 서류제출: 2026.11.25~11.27 18:00"},
         {"id":"jeju-personality","name":"온라인 인성검사 및 서류전형","startDate":"2026-11-30","endDate":"2026-12-03","endTime":"","type":"personality","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"온라인 인성검사 및 서류전형: 2026.11.30~12.03"},
         {"id":"jeju-document-result","name":"서류전형 결과 발표","startDate":"2026-12-04","endDate":"2026-12-04","endTime":"","type":"notice","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"서류전형 결과 발표: 2026.12.04"},
-        {"id":"jeju-interview","name":"면접전형","startDate":"2026-12-16","endDate":"2026-12-18","endTime":"","type":"interview","activationRule":"written_pass","priority":"target","active":false,"needsReview":true,"datePrecision":"range-day","evidence":"면접전형: 2026.12.16~12.18 중 1일"},
-        {"id":"jeju-final","name":"최종 합격자 발표","startDate":"2026-12-21","endDate":"2026-12-21","endTime":"","type":"final","activationRule":"written_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"최종 합격자 발표: 2026.12.21"}
+        {"id":"jeju-interview","name":"면접전형","startDate":"2026-12-16","endDate":"2026-12-18","endTime":"","type":"interview","activationRule":"document_pass","priority":"target","active":false,"needsReview":true,"datePrecision":"range-day","evidence":"면접전형: 2026.12.16~12.18 중 1일"},
+        {"id":"jeju-final","name":"최종 합격자 발표","startDate":"2026-12-21","endDate":"2026-12-21","endTime":"","type":"final","activationRule":"document_pass","priority":"next","active":false,"needsReview":false,"datePrecision":"exact","evidence":"최종 합격자 발표: 2026.12.21"}
       ]
     }
   ],
-  "widgetPreference": {"mode":"auto","projectId":null,"eventId":null}
+  "projectPriority": ["project-jeju-credit-2026-3"],
+  "widgetPreference": {"mode":"auto","currentProjectId":"project-jeju-credit-2026-3","currentEventId":"jeju-written-exam","resultInputNeeded":false}
 }
