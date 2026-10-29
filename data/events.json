@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "timezone": "Asia/Seoul",
+  "updatedAt": "2026-10-29T00:00:00+09:00",
+  "events": [
+    {
+      "id": "exam",
+      "title": "한국사능력검정시험",
+      "kind": "exam",
+      "date": "2026-11-28T10:00",
+      "note": "시험 시작 · 준비물과 시험장을 미리 확인하세요.",
+      "featured": true
+    },
+    {
+      "id": "apply",
+      "title": "제주 원서접수",
+      "kind": "apply",
+      "date": "2026-11-06T10:00",
+      "note": "접수 시작 · 미리 로그인하고 접수 준비를 해 두세요.",
+      "featured": false
+    }
+  ]
+}
